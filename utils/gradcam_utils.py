@@ -1,16 +1,15 @@
 import numpy as np
 from PIL import Image
 
-def generate_simple_heatmap(input_tensor):
+def generate_simple_heatmap(input_image):
     """
-    Generates a simple attention-like heatmap for UI visualization.
+    Deployment-safe heatmap (no torch, no cv2)
     """
 
-    img = input_tensor.squeeze().cpu().numpy()
-
-    if img.ndim == 3:
-        img = np.transpose(img, (1, 2, 0))
-        img = np.mean(img, axis=2)
+    if isinstance(input_image, Image.Image):
+        img = np.array(input_image.convert("L"))
+    else:
+        img = input_image
 
     img = (img - img.min()) / (img.max() - img.min() + 1e-8)
 
@@ -18,8 +17,8 @@ def generate_simple_heatmap(input_tensor):
         img * 255,
         np.zeros_like(img),
         np.zeros_like(img)
-    ], axis=2)
+    ], axis=2).astype(np.uint8)
 
-    heatmap = heatmap.astype(np.uint8)
+    heatmap_img = Image.fromarray(heatmap)
 
-    return Image.fromarray(heatmap)
+    return heatmap_img, heatmap_img
