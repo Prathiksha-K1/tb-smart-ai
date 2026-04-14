@@ -13,7 +13,23 @@ from utils.gradcam_utils import generate_simple_heatmap
 from utils.preprocess import apply_dip_pipeline, get_xray_validity_score, is_valid_chest_xray
 from utils.recommendation import get_ai_recommendation
 from utils.dashboard_utils import get_dashboard_stats, load_cases_df
+import numpy as np
 
+def fix_display_image(img):
+    if isinstance(img, Image.Image):
+        img_np = np.array(img)
+    else:
+        img_np = img
+
+    img_np = img_np.astype("float32")
+    img_np = img_np - img_np.min()
+
+    if img_np.max() > 0:
+        img_np = img_np / (img_np.max() + 1e-8)
+
+    img_np = (img_np * 255).astype("uint8")
+
+    return Image.fromarray(img_np)
 # ----------------------------
 # APP CONFIG
 # ----------------------------
@@ -345,7 +361,8 @@ else:
                 batch = stage_images[i:i+4]
                 for j, (title, img) in enumerate(batch):
                     with cols[j]:
-                        st.image(img, caption=title, use_container_width=True)
+                        fixed_img = fix_display_image(img)
+                        st.image(fixed_img, caption=title, use_container_width=True)
 
             st.markdown("### 📈 DIP Method Contribution")
             dip_df = pd.DataFrame({
