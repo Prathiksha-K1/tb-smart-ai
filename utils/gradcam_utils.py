@@ -1,42 +1,38 @@
 import numpy as np
 from PIL import Image
-import cv2
 
 def generate_simple_heatmap(input_tensor):
     """
-    Generates a simple attention-like heatmap for UI visualization.
+    Generates a simple heatmap WITHOUT using cv2 (deployment safe)
     """
 
-    # 🔥 HANDLE ALL INPUT TYPES
+    # Handle input types
     if isinstance(input_tensor, Image.Image):
         img = np.array(input_tensor.convert("L"))
 
-    elif isinstance(input_tensor, np.ndarray):
-        img = input_tensor
-
     else:
-        # assume torch tensor
-        img = input_tensor.squeeze().cpu().numpy()
+        try:
+            img = input_tensor.squeeze().cpu().numpy()
+        except:
+            img = np.array(input_tensor)
 
-    # 🔥 FIX DIMENSIONS (THIS WAS YOUR ERROR)
+    # Fix dimensions
     while img.ndim > 2:
         img = img[0]
 
     # Normalize
+    img = img.astype(float)
     img = (img - img.min()) / (img.max() - img.min() + 1e-8)
-    img_uint8 = np.uint8(img * 255)
 
-    # Heatmap
-    heatmap = cv2.applyColorMap(img_uint8, cv2.COLORMAP_JET)
+    # 🔥 Create RED heatmap manually
+    heatmap = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+    heatmap[..., 0] = (img * 255).astype(np.uint8)  # Red channel
 
-    # Base grayscale → BGR
-    base = cv2.cvtColor(img_uint8, cv2.COLOR_GRAY2BGR)
+    # Overlay (simple blend)
+    base = np.stack([img*255]*3, axis=-1).astype(np.uint8)
+    overlay = (0.6 * base + 0.4 * heatmap).astype(np.uint8)
 
-    # Overlay
-    overlay = cv2.addWeighted(base, 0.45, heatmap, 0.55, 0)
-
-    # Convert to PIL
-    heatmap_pil = Image.fromarray(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
-    overlay_pil = Image.fromarray(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    heatmap_pil = Image.fromarray(heatmap)
+    overlay_pil = Image.fromarray(overlay)
 
     return heatmap_pil, overlay_pil
