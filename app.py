@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from PIL import Image
 
 from utils.auth import login_user, logout
+from utils.model_utils import load_model, predict_image
 from utils.risk_score import calculate_symptom_score
 from utils.db import init_db, insert_case, seed_demo_data
 from utils.report import generate_report
@@ -291,7 +292,7 @@ else:
         st.markdown("<div class='section-title'>🩺 New TB Screening Case</div>", unsafe_allow_html=True)
         st.markdown("<div class='small-caption'>Doctor screening module for AI-assisted pulmonary TB analysis</div>", unsafe_allow_html=True)
 
-        
+        model = load_model("tb_model.pth")
 
         col1, col2 = st.columns([1.15, 1])
 
@@ -355,19 +356,7 @@ else:
             st.bar_chart(dip_df.set_index("Method"))
 
             if st.button("Analyze"):
-                import numpy as np
-
-                    img_array = np.array(image.convert("L")) / 255.0
-                      mean_val = np.mean(img_array)
-             
-                if mean_val < 0.5:
-                     prediction = "Tuberculosis"
-                      confidence = 92.0
-                else:
-                    prediction = "Normal"
-                    confidence = 88.0
-
-                 input_tensor = image
+                prediction, confidence, input_tensor = predict_image(model, image)
 
                 tb_confidence = confidence if prediction == "Tuberculosis" else (100 - confidence)
                 symptom_score = calculate_symptom_score(cough, fever, night_sweats, weight_loss, smoking)
