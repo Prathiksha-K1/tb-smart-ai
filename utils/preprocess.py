@@ -41,21 +41,25 @@ def is_valid_chest_xray(pil_image, threshold=60):
 
 
 # ============================================================
-# 🔥 HELPER: NORMALIZE IMAGE FOR DISPLAY
+# 🔥 ULTRA FIX: STRONG NORMALIZATION (MAIN FIX)
 # ============================================================
 def normalize_for_display(img_np):
     img_np = img_np.astype(np.float32)
-    img_np = img_np - img_np.min()
 
-    if img_np.max() > 0:
-        img_np = img_np / img_np.max()
+    # 🔥 percentile stretch (VERY IMPORTANT FIX)
+    min_val = np.percentile(img_np, 2)
+    max_val = np.percentile(img_np, 98)
+
+    img_np = np.clip(img_np, min_val, max_val)
+    img_np = (img_np - min_val) / (max_val - min_val + 1e-8)
 
     img_np = (img_np * 255).astype(np.uint8)
+
     return Image.fromarray(img_np)
 
 
 # ============================================================
-# DIGITAL IMAGE PROCESSING (FIXED)
+# DIGITAL IMAGE PROCESSING (FULL FIXED VERSION)
 # ============================================================
 def apply_dip_pipeline(pil_image):
 
@@ -75,16 +79,23 @@ def apply_dip_pipeline(pil_image):
     # 4 Gaussian Blur
     gaussian_img = median_img.filter(ImageFilter.GaussianBlur(radius=1))
 
-    # 5 Edge Detection (FIXED)
+    # ============================================================
+    # 🔥 FIXED DARK STAGES
+    # ============================================================
+
+    # Edge Detection
     edges = gaussian_img.filter(ImageFilter.FIND_EDGES)
+    edges = ImageEnhance.Contrast(edges).enhance(4.0)   # 🔥 boost
     edges_np = normalize_for_display(np.array(edges))
 
-    # 6 Morphological-like cleanup (FIXED)
+    # Morphological Cleanup
     morph = edges.filter(ImageFilter.SMOOTH_MORE)
+    morph = ImageEnhance.Brightness(morph).enhance(2.0)  # 🔥 boost
     morph_np = normalize_for_display(np.array(morph))
 
-    # 7 Sharpen (FIXED)
+    # Final Sharpen
     sharpen = morph.filter(ImageFilter.SHARPEN)
+    sharpen = ImageEnhance.Contrast(sharpen).enhance(3.0)  # 🔥 boost
     sharpen_np = normalize_for_display(np.array(sharpen))
 
     # ============================================================
@@ -107,7 +118,7 @@ def apply_dip_pipeline(pil_image):
     }
 
     # ============================================================
-    # FINAL STAGES (FIXED VISIBILITY)
+    # FINAL OUTPUT
     # ============================================================
     stage_images = [
         ("Grayscale", image),
