@@ -41,14 +41,13 @@ def is_valid_chest_xray(pil_image, threshold=60):
 
 
 # ============================================================
-# 🔥 ULTRA FIX: STRONG NORMALIZATION (MAIN FIX)
+# NORMALIZATION (SOFT - NO OVEREXPOSURE)
 # ============================================================
 def normalize_for_display(img_np):
     img_np = img_np.astype(np.float32)
 
-    # 🔥 percentile stretch (VERY IMPORTANT FIX)
-    min_val = np.percentile(img_np, 2)
-    max_val = np.percentile(img_np, 98)
+    min_val = np.percentile(img_np, 5)
+    max_val = np.percentile(img_np, 95)
 
     img_np = np.clip(img_np, min_val, max_val)
     img_np = (img_np - min_val) / (max_val - min_val + 1e-8)
@@ -59,48 +58,53 @@ def normalize_for_display(img_np):
 
 
 # ============================================================
-# DIGITAL IMAGE PROCESSING (FULL FIXED VERSION)
+# DIGITAL IMAGE PROCESSING (CLEAN VERSION)
 # ============================================================
 def apply_dip_pipeline(pil_image):
 
-    # Resize + grayscale
+    # Base grayscale
     image = pil_image.convert("L").resize((512, 512))
 
-    # 1 Histogram Enhancement
-    enhancer = ImageEnhance.Contrast(image)
-    hist_eq = enhancer.enhance(1.5)
+    # 1 Histogram enhancement
+    hist_eq = ImageEnhance.Contrast(image).enhance(1.4)
 
     # 2 CLAHE-like
-    clahe_img = ImageEnhance.Contrast(hist_eq).enhance(1.3)
+    clahe_img = ImageEnhance.Contrast(hist_eq).enhance(1.2)
 
-    # 3 Median Filter
+    # 3 Median filter
     median_img = clahe_img.filter(ImageFilter.MedianFilter(size=3))
 
-    # 4 Gaussian Blur
+    # 4 Gaussian blur (denoise)
     gaussian_img = median_img.filter(ImageFilter.GaussianBlur(radius=1))
 
     # ============================================================
-    # 🔥 FIXED DARK STAGES
+    # 🔥 FIXED CLEAN EDGE (NO NOISE)
     # ============================================================
 
-    # Edge Detection
     edges = gaussian_img.filter(ImageFilter.FIND_EDGES)
-    edges = ImageEnhance.Contrast(edges).enhance(4.0)   # 🔥 boost
+    edges = edges.filter(ImageFilter.GaussianBlur(radius=1))   # remove dots
+    edges = ImageEnhance.Contrast(edges).enhance(2.0)
     edges_np = normalize_for_display(np.array(edges))
 
-    # Morphological Cleanup
-    morph = edges.filter(ImageFilter.SMOOTH_MORE)
-    morph = ImageEnhance.Brightness(morph).enhance(2.0)  # 🔥 boost
+    # ============================================================
+    # CLEAN MORPHOLOGICAL
+    # ============================================================
+
+    morph = edges.filter(ImageFilter.SMOOTH)
+    morph = morph.filter(ImageFilter.GaussianBlur(radius=1))   # smooth noise
     morph_np = normalize_for_display(np.array(morph))
 
-    # Final Sharpen
-    sharpen = morph.filter(ImageFilter.SHARPEN)
-    sharpen = ImageEnhance.Contrast(sharpen).enhance(3.0)  # 🔥 boost
+    # ============================================================
+    # FINAL SHARPEN (CONTROLLED)
+    # ============================================================
+
+    sharpen = morph.filter(ImageFilter.UnsharpMask(radius=2, percent=120))
     sharpen_np = normalize_for_display(np.array(sharpen))
 
     # ============================================================
     # METRICS
     # ============================================================
+
     gray = np.array(image)
     final_np = np.array(sharpen_np)
 
@@ -118,8 +122,9 @@ def apply_dip_pipeline(pil_image):
     }
 
     # ============================================================
-    # FINAL OUTPUT
+    # OUTPUT IMAGES
     # ============================================================
+
     stage_images = [
         ("Grayscale", image),
         ("Histogram Equalized", hist_eq),
